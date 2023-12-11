@@ -73,20 +73,35 @@ func (s Stats) SortAndFilter(top, over, under int) Stats {
 }
 
 // Report fixme
-func (s Stats) Report(breakPoints []int) map[int]int {
+func (s Stats) Report(breakPoints []int, maxComplexity int) map[int]int {
 	breakPointsLen := len(breakPoints)
-	report := make(map[int]int, breakPointsLen+1)
-	report[1] = 0 // ">= 1"
+	report := make(map[int]int, breakPointsLen+2)
+	report[0] = 0
+	report[1] = 0
 	for _, point := range breakPoints {
-		if point > 1 {
-			report[point] = 0 // [point, next point)
+		if point > 1 && point <= maxComplexity {
+			report[point] = 0
+
 		}
 	}
 
-	j := breakPointsLen
+	j := breakPointsLen - 1
 	for _, stat := range s {
-		if stat.Complexity >= breakPoints[j] {
-			report[j]++
+		if stat.Complexity == 1 {
+			report[0]++
+			continue
+		}
+
+		if j < 0 {
+			report[1]++
+			continue
+		}
+
+		if stat.Complexity > breakPoints[j] {
+			report[breakPoints[j]]++
+		} else if j >= 1 {
+			j--
+			report[breakPoints[j]]++
 		} else {
 			j--
 		}

@@ -41,6 +41,8 @@ Usage:
 Flags:
     -over N               show functions with complexity > N only and
                           return exit code 1 if the set is non-empty
+    -under N               show functions with complexity < N only and
+                          return exit code 1 if the set is non-empty
     -top N                show the top N most complex functions only
     -avg, -avg-short      show the average complexity over all functions;
                           the short option prints the value without a label
@@ -71,12 +73,13 @@ func main() {
 	var breakPoints []int
 	if *report != "" {
 		stringBreakPoints := strings.Split(*report, ",")
-		breakPoints = make([]int, len(stringBreakPoints))
+		breakPoints = make([]int, 0, len(stringBreakPoints))
 		for _, breakPoint := range stringBreakPoints {
 			point, err := strconv.Atoi(breakPoint)
 			if err != nil {
 				usage()
 			}
+
 			breakPoints = append(breakPoints, point)
 		}
 	}
@@ -90,7 +93,7 @@ func main() {
 	}
 
 	if *report != "" {
-		printReport(shownStats, breakPoints)
+		printReport(shownStats, breakPoints, shownStats[0].Complexity)
 	}
 
 	if *over > 0 && len(shownStats) > 0 {
@@ -122,13 +125,18 @@ func printAverage(s gocyclo.Stats, short bool) {
 	fmt.Printf("%.3g\n", s.AverageComplexity())
 }
 
-func printReport(s gocyclo.Stats, breakPoints []int) {
-	totalComplexity := int(s.TotalComplexity())
-	last := -1
-	fmt.Println("RANGE\t|COUNT\t|PERCENT")
-	for key, value := range s.Report(breakPoints) {
-		fmt.Printf("[%d, %d) - %d - %d", key, last, value, value/totalComplexity*100)
+func printReport(s gocyclo.Stats, breakPoints []int, maxComplexity int) {
+	fmt.Println(`+----------------------+------------------+------------------+
+|        RANGE         |       COUNT      |     PERCENT      |
++----------------------+------------------+------------------+`)
+	report := s.Report(breakPoints, maxComplexity)
+	fmt.Printf("\tcomplexity=1       \t%d\t \t%.2f\t\n", report[0], float64(report[0])/float64(len(s))*100)
+	start := 1
+	for _, point := range breakPoints {
+		fmt.Printf("\t(%d, %d]             \t%d\t \t%.2f\t\n", start, point, report[start], float64(report[start])/float64(len(s))*100)
+		start = point
 	}
+	fmt.Printf("\t(%d, %d]             \t%d\t \t%.2f\t\n", start, maxComplexity, report[start], float64(report[start])/float64(len(s))*100)
 }
 
 func usage() {
