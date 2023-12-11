@@ -28,6 +28,8 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/fzipp/gocyclo"
 )
@@ -50,10 +52,12 @@ The output fields for each line are:
 
 func main() {
 	over := flag.Int("over", 0, "show functions with complexity > N only")
+	under := flag.Int("under", 0, "show functions with complexity < N only")
 	top := flag.Int("top", -1, "show the top N most complex functions only")
 	avg := flag.Bool("avg", false, "show the average complexity")
 	avgShort := flag.Bool("avg-short", false, "show the average complexity without a label")
 	ignore := flag.String("ignore", "", "exclude files matching the given regular expression")
+	report := flag.String("report", "", "show the general report")
 
 	log.SetFlags(0)
 	log.SetPrefix("gocyclo: ")
@@ -64,12 +68,29 @@ func main() {
 		usage()
 	}
 
+	var breakPoints []int
+	if *report != "" {
+		stringBreakPoints := strings.Split(*report, ",")
+		breakPoints = make([]int, len(stringBreakPoints))
+		for _, breakPoint := range stringBreakPoints {
+			point, err := strconv.Atoi(breakPoint)
+			if err != nil {
+				usage()
+			}
+			breakPoints = append(breakPoints, point)
+		}
+	}
+
 	allStats := gocyclo.Analyze(paths, regex(*ignore))
-	shownStats := allStats.SortAndFilter(*top, *over)
+	shownStats := allStats.SortAndFilter(*top, *over, *under)
 
 	printStats(shownStats)
 	if *avg || *avgShort {
 		printAverage(allStats, *avgShort)
+	}
+
+	if *report != "" {
+		printReport(shownStats, breakPoints)
 	}
 
 	if *over > 0 && len(shownStats) > 0 {
@@ -99,6 +120,15 @@ func printAverage(s gocyclo.Stats, short bool) {
 		fmt.Print("Average: ")
 	}
 	fmt.Printf("%.3g\n", s.AverageComplexity())
+}
+
+func printReport(s gocyclo.Stats, breakPoints []int) {
+	totalComplexity := int(s.TotalComplexity())
+	last := -1
+	fmt.Println("RANGE\t|COUNT\t|PERCENT")
+	for key, value := range s.Report(breakPoints) {
+		fmt.Printf("[%d, %d) - %d - %d", key, last, value, value/totalComplexity*100)
+	}
 }
 
 func usage() {

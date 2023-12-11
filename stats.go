@@ -48,20 +48,51 @@ func (s Stats) TotalComplexity() uint64 {
 // and returns a slice of s limited to the 'top' N entries with a cyclomatic
 // complexity greater than 'over'. If 'top' is negative, i.e. -1, it does
 // not limit the result. If 'over' is <= 0 it does not limit the result either,
-// because a function has a base cyclomatic complexity of at least 1.
-func (s Stats) SortAndFilter(top, over int) Stats {
+// because a function has a base cyclomatic complexity of at least 1. // fixme
+func (s Stats) SortAndFilter(top, over, under int) Stats {
 	result := make(Stats, len(s))
 	copy(result, s)
 	sort.Stable(byComplexityDesc(result))
+	if under <= 1 {
+		under = result[0].Complexity + 1
+	}
+	skipCount := 0
 	for i, stat := range result {
-		if i == top {
-			return result[:i]
+		if stat.Complexity >= under {
+			skipCount++
+			continue
+		}
+		if i-skipCount == top {
+			return result[skipCount:i]
 		}
 		if stat.Complexity <= over {
-			return result[:i]
+			return result[skipCount:i]
 		}
 	}
 	return result
+}
+
+// Report fixme
+func (s Stats) Report(breakPoints []int) map[int]int {
+	breakPointsLen := len(breakPoints)
+	report := make(map[int]int, breakPointsLen+1)
+	report[1] = 0 // ">= 1"
+	for _, point := range breakPoints {
+		if point > 1 {
+			report[point] = 0 // [point, next point)
+		}
+	}
+
+	j := breakPointsLen
+	for _, stat := range s {
+		if stat.Complexity >= breakPoints[j] {
+			report[j]++
+		} else {
+			j--
+		}
+	}
+
+	return report
 }
 
 type byComplexityDesc Stats
